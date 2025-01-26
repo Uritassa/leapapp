@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "my-flask-app.fullname" . }}
+  labels:
+    app: {{ include "my-flask-app.name" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "my-flask-app.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "my-flask-app.name" . }}
+    spec:
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.service.port }}
+        env:
+        - name: DB_HOST
+          value: {{ .Values.config.dbHost }}
+        - name: DB_NAME
+          value: {{ .Values.config.dbName }}
+        - name: BACKEND
+          value: {{ .Values.config.backend }}
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "my-flask-app.fullname" . }}-secret
+              key: db-user
+        - name: DB_PASS
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "my-flask-app.fullname" . }}-secret
+              key: db-pass

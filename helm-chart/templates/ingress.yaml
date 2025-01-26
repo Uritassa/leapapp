@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "develeap-app.fullname" . }}
+  labels:
+    app: {{ include "develeap-app.name" . }}
+  annotations:
+    {{- range $key, $value := .Values.ingress.annotations }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+spec:
+  {{- with .Values.ingress.ingressClassName }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  rules:
+  - host: {{ .Values.ingress.hostname }}
+    http:
+      paths:
+        {{- with .Values.ingress.extraPaths }}
+          {{- tpl (toYaml .) $ | nindent 10 }}
+        {{- end }}
+      - path: {{ .Values.ingress.path }}
+        pathType: {{ $.Values.ingress.pathType }}
+        backend:
+          service:
+            name: {{ include "develeap-app.fullname" . }}
+            port:
+              number: {{ $.Values.service.port }}
+      {{- end }}
+  {{- end }}

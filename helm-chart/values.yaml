@@ -1,0 +1,51 @@
+# Default values for my-flask-app
+
+image:
+  repository: leapapp-app
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 2
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  # -- Enable an ingress resource for the App
+  enabled: false
+  annotations: {}
+  ingressClassName: ""
+  extraPaths: []
+      # - path: /*
+      #   pathType: Prefix
+      #   backend:
+      #     service:
+      #       name: ssl-redirect
+      #       port:
+      #         name: use-annotation
+  hostname: ""
+  # -- The path to Develeap app
+  path: /
+  # -- Ingress path type. One of `Exact`, `Prefix` or `ImplementationSpecific`
+  pathType: Prefix
+
+config:
+  dbHost: "mysql-service"
+  dbName: "flaskapp"
+  backend: "http://my-flask-app"
+
+secrets:
+  dbUser: "flaskapp"
+  dbPass: "flaskapp"
+
+mysql:
+  auth:
+    enabled: false
+    rootPassword: rootpass
+    database: flaskapp
+    username: flaskapp
+    password: flaskpass
+  primary:
+    persistence:
+      size: 1Gi

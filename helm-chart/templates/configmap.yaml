@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "my-flask-app.fullname" . }}-config
+  labels:
+    app: {{ include "my-flask-app.name" . }}
+data:
+  DB_HOST: {{ .Values.config.dbHost }}
+  DB_NAME: {{ .Values.config.dbName }}
+  BACKEND: {{ .Values.config.backend }}

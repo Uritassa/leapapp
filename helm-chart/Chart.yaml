@@ -1,0 +1,9 @@
+apiVersion: v2
+name: leapapp-app
+description: A Helm chart for deploying a Leapapp Flask app with MySQL integration.
+version: 0.1.0
+appVersion: "0.1" 
+dependencies:
+  - name: mysql
+    version: "11.1.17"
+    repository: "https://charts.bitnami.com/bitnami"
