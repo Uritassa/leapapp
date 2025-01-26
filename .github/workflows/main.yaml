@@ -1,0 +1,46 @@
+name: CI/CD Main Pipeline
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Select environment target'
+        required: true
+        type: choice
+        options:
+          - dev
+      ecr:
+        description: 'Specify container registry'
+        required: true
+        type: string
+  push:
+    branches: 
+      - main
+    paths-ignore:
+      - 'k8s/**'
+  workflow_run:
+    workflows: [CI/CD Release Pipeline]
+    types: [completed]
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yaml
+    permissions:
+      id-token: write
+      contents: read
+    with:
+        environment: ${{ github.event.inputs.environment || 'dev' }}
+        working_directory: ./ 
+        ecr_repository: ${{ inputs.ecr }}
+        image_version: ${{ github.run_id }}
+    secrets: inherit
+  cd:          
+    needs: [ci]
+    uses: ./.github/workflows/cd.yaml
+    permissions:
+      id-token: write
+      contents: write
+    with:
+        environment: ${{ inputs.environment || 'dev' }}
+        working_directory: ./k8s
+        image: ${{ needs.ci.outputs.image_output }}
+    secrets: inherit
