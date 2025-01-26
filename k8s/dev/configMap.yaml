@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: leapapp-app-db-config
+  namespace: leapapp
+  labels:
+    app: leapapp-app
+data:
+  DB_HOST: mysql.leapapp.svc.cluster.local
+  DB_NAME: flaskapp

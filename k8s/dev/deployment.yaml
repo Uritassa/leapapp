@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: leapapp-app
+  namespace: leapapp
+  labels:
+    app: leapapp-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: leapapp-app
+  template:
+    metadata:
+      labels:
+        app: leapapp-app
+    spec:
+      containers:
+      - name: leapapp-app
+        image: IMAGE
+        ports:
+        - containerPort: 5000
+        env:
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: leapapp-app-db-config
+              key: DB_HOST
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: leapapp-app-db-config
+              key: DB_NAME
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: leapapp-app-db-secret
+              key: DB_USER
+        - name: DB_PASS
+          valueFrom:
+            secretKeyRef:
+              name: leapapp-app-db-secret
+              key: DB_PASS
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "10m"
+          limits:
+            memory: "128Mi"
+            cpu: "50m"
