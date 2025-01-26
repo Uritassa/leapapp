@@ -1,0 +1,85 @@
+name: CI Pipeline
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      ecr_repository: 
+        required: true
+        type: string
+      working_directory:
+        required: true
+        type: string
+      image_version:
+        required: true
+        type: string
+    outputs:
+      image_output:
+        value: ${{ jobs.ci.outputs.image_output }}
+
+
+jobs:
+  ci:
+    environment: 
+      name: ${{ inputs.environment }}
+    name: Build, Scan, and Push Docker Image   
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.working_directory }}
+    outputs:
+      image_output: ${{ steps.build.outputs.image }}
+
+    steps:
+      - name: Checkout Repository 
+        uses: actions/checkout@v4
+
+
+      - name: Configure AWS 
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.aws_role }}
+          aws-region: ${{ vars.aws_region }}
+          role-session-name: Github-OIDC
+
+      - name: Login to Amazon ECR Private 
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Generate image tag 
+        id: generate-date
+        run: |
+          VERSION="${{ inputs.image_version }}"
+          TAG="$VERSION"
+          echo "TAG=$TAG" >> $GITHUB_ENV
+
+
+      - name: Build Docker Image 
+        id: build
+        env:
+          ECR: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr_repository }}
+          TAG: ${{ env.TAG }}
+        run: |
+          docker build -t $ECR:$TAG .
+          echo "image=$ECR:$TAG" >> $GITHUB_ENV
+          echo "image=$ECR:$TAG" >> $GITHUB_OUTPUT
+
+
+      - name: Scan Image with Trivy 
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.build.outputs.image }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL'
+        env:
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db:2,public.ecr.aws/aquasecurity/trivy-db:2
+
+      - name: Push Docker Image 
+        id: push
+        if: success()
+        run: docker push ${{ env.image }}

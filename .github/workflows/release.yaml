@@ -1,0 +1,106 @@
+name: CI/CD Release Pipeline
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Select environment target'
+        required: true
+        type: choice
+        options:
+          - prod
+      release_version:
+        description: 'Specify the release version (e.g., 1.2.3) or leave blank for automatic increment'
+        required: false
+        type: string
+
+jobs:
+  pre-release:
+    environment: ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.release_version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Set up Git
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: Determine Release Version
+        id: release_version
+        env:
+          release_version: ${{ github.event.inputs.release_version }}
+        run: |
+          echo "version=$release_version" >> $GITHUB_OUTPUT
+
+  ci:
+    needs: pre-release
+    uses: ./.github/workflows/ci.yaml
+    permissions:
+      id-token: write
+      contents: read
+    with:
+        environment: ${{ inputs.environment }}
+        working_directory: ./
+        ecr_repository: ${{ github.event.repository.name }}
+        image_version: ${{ needs.pre-release.outputs.release_tag }}
+    secrets: inherit
+
+  cd:
+    needs: [ci]
+    uses: ./.github/workflows/cd.yaml
+    permissions:
+      id-token: write
+      contents: write
+    with:
+        environment: ${{ inputs.environment }}
+        working_directory: ./k8s
+        image: ${{ needs.ci.outputs.image_output }}
+    secrets: inherit
+
+  release:
+    needs: [ cd, pre-release]
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+    
+      - name: Set up Git
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: Create Tag and Push
+        env:
+          VERSION: ${{ needs.pre-release.outputs.release_tag }}
+          GITHUB_TOKEN: ${{ secrets.ORG_GITHUB_TOKEN }}
+        run: |
+          CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          echo "Current branch: $CURRENT_BRANCH"
+          # Create the tag
+          git tag -a "${{ env.VERSION }}" -m "Release ${{ env.VERSION }}"
+          # Push the tag only
+          git push origin "refs/tags/${{ env.VERSION }}"
+          #git push origin "refs/tags/${{ env.VERSION }}" $CURRENT_BRANCH # for updating main branch
+
+      - name: Install GitHub CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gh
+
+      - name: Create GitHub Release
+        env:
+          VERSION: ${{ needs.pre-release.outputs.release_tag }}
+          GITHUB_TOKEN: ${{ secrets.ORG_GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ env.VERSION }}" --notes "Release ${{ env.VERSION }}"

@@ -1,0 +1,83 @@
+name: CD Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      working_directory:
+        required: true
+        type: string
+      image:
+        required: true
+        type: string
+
+jobs:
+  cd:
+    environment: 
+      name: ${{ inputs.environment }}
+    name: Deploy to Kubernetes cluster
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.working_directory }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: "false"
+
+      - name: Configure AWS credentials from AWS account
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: Github-OIDC
+
+      - name: Configure kubectl for Amazon EKS 
+        run: aws eks --region ${{ vars.AWS_REGION }} update-kubeconfig --name ${{ vars.K8S_CLUSTER_NAME }}
+
+      - name: Update Kubernetes Manifests
+        working-directory: ${{ inputs.working_directory }}/${{ inputs.environment }}
+        env:
+          IMAGE: ${{ inputs.image }}
+        run: |
+          echo "Updating Kubernetes manifest with new image: $IMAGE"
+          sed -i '/image:/s|image:.*|image: '"${{ inputs.image }}"'|' deployment.yaml
+          echo "Updated deployment.yaml:"
+
+      - name: Commit and Push Changes to ${{ github.ref_name }} Branch
+        working-directory: ${{ inputs.working_directory }}/${{ inputs.environment }}
+        env:
+          GITTOKEN: ${{ secrets.ORG_GITHUB_TOKEN }}
+        run: |
+          git config user.name "Uritassa"
+          git config user.email "urits91@gmail.com"
+          git remote set-url origin https://${GITHUB_TOKEN}@github.com/${{ github.repository }}
+
+          # echo "Checking out or creating the ${{ github.ref_name }} branch..."
+          # git checkout ${{ github.ref_name }} || git checkout -b ${{ github.ref_name }}
+
+          echo "Staging changes..."
+          git add deployment.yaml
+
+          echo "Checking for changes..."
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            echo "Changes detected. Committing..."
+            git commit -m "Update image to ${{ inputs.image }}"
+
+            echo "Pushing changes to ${{ github.ref_name }} branch..."
+            git push origin ${{ github.ref_name }}
+          fi
+
+      - name: Deploy ArgoCD Application 
+        working-directory: ${{ inputs.working_directory }}/${{ inputs.environment }}/gitops
+        run: |
+          echo "Deploying ArgoCD application..."
+          kubectl apply -f application.yaml
+          echo "ArgoCD application deployed successfully."
