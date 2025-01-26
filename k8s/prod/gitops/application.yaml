@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: leapapp
+  namespace: argocd
+spec:
+  destination:
+    name: ''
+    namespace: leapapp
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    automated:
+      prune: false
+      selfHeal: true
+  source:
+    path: k8s/prod
+    repoURL: https://github.com/Uritassa/leapapp
+    targetRevision: main
+  sources: []
+  project: prod
