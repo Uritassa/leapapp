@@ -1,0 +1,2 @@
+# LeapApp
+This repository contains the implementation of a DevOps home task, aimed at showcasing skills in automating CI/CD processes, containerization, and infrastructure provisioning using Terraform and Kubernetes.
